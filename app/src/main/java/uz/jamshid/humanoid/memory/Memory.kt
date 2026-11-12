@@ -52,12 +52,13 @@ class Memory(ctx: Context, private val rest: GeminiRest) {
             pending.toString().also { pending.setLength(0) }
         }
         val prompt = """
-            Sen Jamshid akaning hamrohining xotira bo'limisan.
-            Quyida MAVJUD XOTIRA va YANGI SUHBAT bor. Ularni birlashtirib, yangilangan xotirani yoz.
-            Saqlash kerak: Jamshid aka haqidagi faktlar, uning odatlari, yaqinlari, rejalari va va'dalar (sanasi bilan),
-            borgan joylari, muhim voqealar, kayfiyati, unga yoqadigan/yoqmaydigan mavzular.
+            Sen bir tirik hamrohning xotirasisan. Quyida MAVJUD XOTIRA va YANGI SUHBAT bor.
+            Ularni birlashtirib, yangilangan xotirani yoz. Faqat suhbatda ANIQ aytilgan yoki aniq kuzatilgan narsalarni yoz —
+            hech narsani taxmin qilma, o'zingdan qo'shma (masalan, odamning ismi yoki kasbi aytilmagan bo'lsa, yozma).
+            Saqlash kerak: odam haqida bilib olingan faktlar, odatlari, yaqinlari, rejalari va va'dalar (sanasi bilan),
+            joylar, muhim voqealar, kayfiyati, yoqadigan/yoqmaydigan mavzular, siz o'rtangizdagi munosabat.
             Eskirgan yoki takroriy narsalarni olib tashla. Eng ko'pi 500 so'z, o'zbek tilida, qisqa punktlarda.
-            Faqat xotira matnini qaytar, boshqa hech narsa yozma.
+            Faqat xotira matnini qaytar.
 
             MAVJUD XOTIRA:
             ${longTerm().ifBlank { "(hali bo'sh)" }}

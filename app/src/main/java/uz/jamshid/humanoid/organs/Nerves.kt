@@ -61,21 +61,15 @@ class Nerves(ctx: Context, private val onEvent: (String) -> Unit) : SensorEventL
                 val (x, y, z) = Triple(e.values[0], e.values[1], e.values[2])
                 var mag = sqrt(x * x + y * y + z * z)
                 if (usingRawAccel) mag = abs(mag - SensorManager.GRAVITY_EARTH)
-                // Telefon qo'lda bo'lganda emas, faqat harakatdagi mashinada zarbani sezamiz
+                // Faqat harakat paytidagi keskin zarbalar (qo'lda silkitish emas)
                 if (mag > 7.5f && moving()) {
-                    val g = mag / SensorManager.GRAVITY_EARTH
-                    val strength = when {
-                        g > 1.5f -> "juda kuchli"
-                        g > 1.0f -> "kuchli"
-                        else -> "o'rtacha"
-                    }
-                    fire("zarba", "Tana keskin silkindi (chuqur yoki notekis yo'l), kuchi $strength: ${fmt(g)}g")
+                    fire("zarba", "Keskin silkinish ${fmt(mag / SensorManager.GRAVITY_EARTH)}g")
                 }
             }
             Sensor.TYPE_GYROSCOPE -> {
                 val rate = sqrt(e.values[0] * e.values[0] + e.values[1] * e.values[1] + e.values[2] * e.values[2])
                 if (rate > 1.0f && speedKmh > 25f) {
-                    fire("burilish", "Keskin burilish yoki manevr, aylanish tezligi ${fmt(rate)} rad/s")
+                    fire("burilish", "Keskin aylanish ${fmt(rate)} rad/s")
                 }
             }
         }
@@ -93,9 +87,9 @@ class Nerves(ctx: Context, private val onEvent: (String) -> Unit) : SensorEventL
             if (dt in 0.5f..3f) {
                 val change = (s - lastSpeed) / dt // km/soat har soniyada
                 if (change < -13f && lastSpeed > 20f) {
-                    fire("tormoz", "Keskin tormoz: ${lastSpeed.toInt()} → ${s.toInt()} km/soat, ${fmt(dt)} soniyada")
+                    fire("sekinlashish", "Keskin sekinlashish ${lastSpeed.toInt()} → ${s.toInt()} km/soat, ${fmt(dt)} s")
                 } else if (change > 11f) {
-                    fire("tezlanish", "Keskin tezlanish: ${lastSpeed.toInt()} → ${s.toInt()} km/soat")
+                    fire("tezlanish", "Keskin tezlanish ${lastSpeed.toInt()} → ${s.toInt()} km/soat")
                 }
             }
         }
