@@ -18,8 +18,7 @@ import java.util.concurrent.Executors
 import kotlin.math.max
 
 /**
- * KO'Z — Foydalanuvchi tanlagan bitta aniq kameradan (Oldi yoki Orqa) ko'radi.
- * Ekrandagi tugma orqali osongina almashtiriladi.
+ * KO'Z — MainExecutor orqali 100% ishonchli almashadigan kamera.
  */
 class Eyes(
     private val ctx: Context,
@@ -53,10 +52,14 @@ class Eyes(
         }, ContextCompat.getMainExecutor(ctx))
     }
 
-    /** Ekrandagi tugma bosilganda kamerani oldi/orqa qilib almashtirish */
+    /** Ekrandagi tugma bosilganda kamerani oldi/orqa qilib almashtirish (MainThread'da) */
     fun switchCamera(): Boolean {
         isFront = !isFront
-        provider?.let { bindCamera(it) }
+        provider?.let { p ->
+            ContextCompat.getMainExecutor(ctx).execute {
+                bindCamera(p)
+            }
+        }
         return isFront
     }
 

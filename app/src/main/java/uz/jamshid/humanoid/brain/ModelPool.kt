@@ -4,15 +4,15 @@ import android.os.SystemClock
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * MODEL HOVUZI — barcha Gemini modellari navbat bilan ishlatiladi.
- * Biror model limiti tugasa yoki xato bersa, u vaqtincha "dam oladi" va darhol keyingisiga o'tiladi.
- * Dam olish vaqti tugagach, model yana navbatga qaytadi.
+ * MODEL HOVUZI:
+ * gemini-3.8 UMUMAN YO'Q!
+ * Asosiy model: gemini-3.1-flash-live-preview
+ * Zaxirada: barcha qolgan modellar navbat bilan.
  */
 class ModelPool(val name: String, val models: List<String>) {
 
     private val restUntil = ConcurrentHashMap<String, Long>()
 
-    /** Hozir ishlatish mumkin bo'lgan modellar (ustuvorlik tartibida). Hammasi dam olayotgan bo'lsa — eng tez qaytadigani. */
     fun available(): List<String> {
         val now = SystemClock.elapsedRealtime()
         val ok = models.filter { (restUntil[it] ?: 0L) <= now }
@@ -25,7 +25,6 @@ class ModelPool(val name: String, val models: List<String>) {
         restUntil[model] = SystemClock.elapsedRealtime() + ms
     }
 
-    /** Xato turiga qarab qancha dam olishini hal qiladi. */
     fun penalize(model: String, httpCode: Int, message: String) {
         val m = message.lowercase()
         val ms = when {
@@ -38,17 +37,15 @@ class ModelPool(val name: String, val models: List<String>) {
     }
 
     companion object {
-        /** Real-vaqt ovozli miya (Live API) */
+        /** Jonli audio (Live) — 3.8 BUTUNLAY OLIB TASHLANDI */
         val LIVE = ModelPool("live", listOf(
-            "gemini-3.8-live",
             "gemini-3.1-flash-live-preview",
-            "gemini-3.8-live-extended-thinking",
             "gemini-2.5-flash-native-audio-latest",
             "gemini-2.5-flash-native-audio-preview-12-2025",
             "gemini-2.5-flash-native-audio-preview-09-2025",
         ))
 
-        /** Tezkor ko'rish tahlili — avval yengil, keyin kuchliroq modellar */
+        /** Tezkor ko'rish — 3.8 YO'Q */
         val FAST = ModelPool("fast", listOf(
             "gemini-3.1-flash-lite",
             "gemini-3.5-flash-lite",
@@ -58,15 +55,13 @@ class ModelPool(val name: String, val models: List<String>) {
             "gemini-3.5-flash",
             "gemini-3.6-flash",
             "gemini-3.7-flash",
-            "gemini-3.8-flash",
             "gemini-flash-latest",
             "gemini-3-flash-preview",
             "gemini-2.5-flash",
         ))
 
-        /** Chuqur fikrlash (xotira) — avval eng aqlli, keyin qolganlari */
+        /** Xotira va fikrlash — 3.8 YO'Q */
         val SMART = ModelPool("smart", listOf(
-            "gemini-3.8-flash",
             "gemini-3.7-flash",
             "gemini-3.6-flash",
             "gemini-3.5-flash",
