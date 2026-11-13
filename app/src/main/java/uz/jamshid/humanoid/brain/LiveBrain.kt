@@ -15,7 +15,7 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * MIYA — Tez fikrlovchi va o'rtacha tabiiy javob beruvchi arxitektura.
+ * MIYA — Tabiiy o'zbekona talaffuz va silliq inson ovozi (Kore).
  */
 class LiveBrain(
     private val apiKey: String,
@@ -34,7 +34,8 @@ class LiveBrain(
 
     companion object {
         private const val TAG = "LiveBrain"
-        const val VOICE = "Charon"
+        // O'zbek tilida eng silliq va tabiiy chiqadigan inson ovozi: Kore
+        const val VOICE = "Kore"
         private const val BASE_URL =
             "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key="
     }
@@ -205,7 +206,6 @@ class LiveBrain(
         ws?.send(payload)
     }
 
-    /** Tez va o'rtacha munosabat bildirish impulsi */
     fun impulse(text: String) {
         if (!ready) return
         val payload = JSONObject().put("clientContent", JSONObject()
