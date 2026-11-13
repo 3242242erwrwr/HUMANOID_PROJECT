@@ -18,9 +18,8 @@ import java.util.concurrent.Executors
 import kotlin.math.max
 
 /**
- * KO'Z — Ikkala kamerani (Oldi va Orqa) qo'llab-quvvatlaydi!
- * Agar oldi kamera bo'lsa oldidan, bo'lmasa orqadan oladi.
- * Yoki navbatma-navbat ikkalasidan ham ko'radi.
+ * KO'Z — Foydalanuvchi tanlagan bitta aniq kameradan (Oldi yoki Orqa) ko'radi.
+ * Ekrandagi tugma orqali osongina almashtiriladi.
  */
 class Eyes(
     private val ctx: Context,
@@ -29,17 +28,18 @@ class Eyes(
 ) {
     companion object {
         private const val TAG = "Eyes"
-        const val INTERVAL_MS = 2000L // Har 2 soniyada yangi kadr
+        const val INTERVAL_MS = 2500L
     }
 
     private val exec = Executors.newSingleThreadExecutor()
     private var provider: ProcessCameraProvider? = null
     private var lastFrame = 0L
 
-    // Default holatda OLD kameradan boshlaymiz (inson bilan yuzma-yuz muloqot uchun)
-    private var useFront = true
+    @Volatile var isFront: Boolean = true
+        private set
 
-    fun start() {
+    fun start(front: Boolean = true) {
+        this.isFront = front
         val future = ProcessCameraProvider.getInstance(ctx)
         future.addListener({
             val p = try {
@@ -51,6 +51,13 @@ class Eyes(
             provider = p
             bindCamera(p)
         }, ContextCompat.getMainExecutor(ctx))
+    }
+
+    /** Ekrandagi tugma bosilganda kamerani oldi/orqa qilib almashtirish */
+    fun switchCamera(): Boolean {
+        isFront = !isFront
+        provider?.let { bindCamera(it) }
+        return isFront
     }
 
     private fun bindCamera(p: ProcessCameraProvider) {
@@ -71,7 +78,7 @@ class Eyes(
                     lastFrame = now
                     val rot = img.imageInfo.rotationDegrees
                     val bmp = img.toBitmap()
-                    val jpeg = toJpeg(bmp, rot)
+                    val jpeg = toJpeg(bmp, rot, isFront)
                     onFrame(jpeg)
                 }
             } catch (e: Exception) {
@@ -81,8 +88,7 @@ class Eyes(
             }
         }
 
-        // Old kamerani sinab ko'ramiz, agar telefonda old kamera bo'lmasa orqa kameraga o'tadi
-        val selector = if (useFront && p.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA)) {
+        val selector = if (isFront) {
             CameraSelector.DEFAULT_FRONT_CAMERA
         } else {
             CameraSelector.DEFAULT_BACK_CAMERA
@@ -91,27 +97,18 @@ class Eyes(
         try {
             p.unbindAll()
             p.bindToLifecycle(owner, selector, analysis)
-            Log.i(TAG, "Kamera muvaffaqiyatli ulandi: ${if (selector == CameraSelector.DEFAULT_FRONT_CAMERA) "OLDI" else "ORQA"}")
+            Log.i(TAG, "Ko'z qadaldi: ${if (isFront) "OLDI KAMERA" else "ORQA KAMERA"}")
         } catch (e: Exception) {
-            Log.e(TAG, "Kamerani ulashda xatolik: ${e.message}")
-            // Agar birinchisi o'xshamasa ikkinchisini sinaymiz
-            try {
-                p.unbindAll()
-                val fallback = if (selector == CameraSelector.DEFAULT_FRONT_CAMERA) CameraSelector.DEFAULT_BACK_CAMERA else CameraSelector.DEFAULT_FRONT_CAMERA
-                p.bindToLifecycle(owner, fallback, analysis)
-            } catch (ex: Exception) {
-                Log.e(TAG, "Fallback kamera ham ochilmadi: ${ex.message}")
-            }
+            Log.e(TAG, "Kamerani ulashda xato: ${e.message}")
         }
     }
 
-    private fun toJpeg(src: Bitmap, rotation: Int): ByteArray {
+    private fun toJpeg(src: Bitmap, rotation: Int, front: Boolean): ByteArray {
         val scale = 480f / max(src.width, src.height)
         val m = Matrix().apply {
             if (scale < 1f) postScale(scale, scale)
             if (rotation != 0) postRotate(rotation.toFloat())
-            // Oldi kamerada oynadek teskari ko'rsatmasligi uchun
-            if (useFront) postScale(-1f, 1f, src.width / 2f, src.height / 2f)
+            if (front) postScale(-1f, 1f, src.width / 2f, src.height / 2f)
         }
         val bmp = Bitmap.createBitmap(src, 0, 0, src.width, src.height, m, true)
         return ByteArrayOutputStream().use { out ->

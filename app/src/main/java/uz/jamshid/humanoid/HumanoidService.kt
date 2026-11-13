@@ -8,6 +8,7 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.os.Binder
 import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
@@ -22,9 +23,7 @@ import uz.jamshid.humanoid.organs.Nerves
 import uz.jamshid.humanoid.organs.Voice
 
 /**
- * GUMANOID TANASI — Mutlaqo tirik insondek tabiiy muloqot.
- * Ko'z va tovush bir-biriga noo'rin to'kilib ketmaydi.
- * O'z a'zolarini sanab hisobot bermaydi.
+ * GUMANOID TANASI — Aniq tanlangan bitta kameradan qaraydi.
  */
 class HumanoidService : LifecycleService(), LiveBrain.Listener {
 
@@ -32,13 +31,21 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
         private const val CHANNEL = "hamroh"
         private const val NOTIF_ID = 1
         private const val BARGE_IN_RMS = 2200.0
+        const val ACTION_SWITCH_CAMERA = "uz.jamshid.humanoid.SWITCH_CAMERA"
     }
+
+    inner class LocalBinder : Binder() {
+        fun getService(): HumanoidService = this@HumanoidService
+    }
+
+    private val binder = LocalBinder()
 
     private lateinit var brain: LiveBrain
     private lateinit var voice: Voice
     private lateinit var ears: Ears
     private lateinit var nerves: Nerves
-    private var eyes: Eyes? = null
+    var eyes: Eyes? = null
+        private set
     private var wakeLock: PowerManager.WakeLock? = null
 
     private val userBuf = StringBuilder()
@@ -72,20 +79,31 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
         if (granted(Manifest.permission.ACCESS_FINE_LOCATION)) nerves.start()
         if (granted(Manifest.permission.CAMERA)) {
             eyes = Eyes(this, this) { jpeg ->
-                // Kamera kadrlarini Gemini'ga uzatadi (ko'zi ko'rib turadi)
                 brain.sendFrame(jpeg)
-            }.also { it.start() }
+            }.also { it.start(front = true) } // Standart holatda old kamera bilan boshlaydi
         }
 
-        HumanoidState.add("Tana uyg'ondi")
+        HumanoidState.add("Tana uyg'ondi (Oldi kamera)")
+    }
+
+    fun switchCamera(): Boolean {
+        val isFront = eyes?.switchCamera() ?: true
+        HumanoidState.add(if (isFront) "Ko'z: OLDI kameraga o'tdi" else "Ko'z: ORQA kameraga o'tdi")
+        return isFront
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
+        if (intent?.action == ACTION_SWITCH_CAMERA) {
+            switchCamera()
+        }
         return START_STICKY
     }
 
-    override fun onBind(intent: Intent): IBinder? = super.onBind(intent)
+    override fun onBind(intent: Intent): IBinder {
+        super.onBind(intent)
+        return binder
+    }
 
     override fun onDestroy() {
         HumanoidState.add("Tizim to'xtatildi")
