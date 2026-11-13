@@ -11,18 +11,10 @@ import android.content.pm.ServiceInfo
 import android.os.Binder
 import android.os.IBinder
 import android.os.PowerManager
-import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 import uz.jamshid.humanoid.brain.LiveBrain
 import uz.jamshid.humanoid.brain.Persona
 import uz.jamshid.humanoid.organs.Ears
@@ -31,8 +23,8 @@ import uz.jamshid.humanoid.organs.Nerves
 import uz.jamshid.humanoid.organs.Voice
 
 /**
- * GUMANOID TANASI — Mutlaqo erkin shaxs.
- * Hech qanday buyruq, qolip yoki o'lchovsiz toza hayot.
+ * GUMANOID TANASI — Sokin, tabiiy inson.
+ * Hadeb ko'rganini hisobot qilib gapiraverish butunlay to'xtatildi!
  */
 class HumanoidService : LifecycleService(), LiveBrain.Listener {
 
@@ -48,7 +40,6 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
     }
 
     private val binder = LocalBinder()
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private lateinit var brain: LiveBrain
     private lateinit var voice: Voice
@@ -60,9 +51,6 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
 
     private val userBuf = StringBuilder()
     private val modelBuf = StringBuilder()
-
-    @Volatile private var lastSpokeAt = 0L
-    @Volatile private var hasFrame = false
 
     override fun onCreate() {
         super.onCreate()
@@ -92,38 +80,17 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
         if (granted(Manifest.permission.ACCESS_FINE_LOCATION)) nerves.start()
         if (granted(Manifest.permission.CAMERA)) {
             eyes = Eyes(this, this) { jpeg ->
-                hasFrame = true
+                // Kamera faqat ko'zi sifatida kadr yuboradi, uni har soniyada gapirtirish to'xtatildi
                 brain.sendFrame(jpeg)
             }.also { it.start(front = true) }
         }
 
-        HumanoidState.add("Tana uyg'ondi (Oldi kamera)")
-        scope.launch { autonomousLoop() }
-    }
-
-    private suspend fun autonomousLoop() {
-        delay(3000)
-        if (brain.ready && hasFrame) {
-            brain.impulse("Atrofingga qara.")
-            lastSpokeAt = SystemClock.elapsedRealtime()
-        }
-
-        while (scope.isActive) {
-            delay(12_000)
-            val now = SystemClock.elapsedRealtime()
-            val silentSec = (now - lastSpokeAt) / 1000
-
-            if (brain.ready && hasFrame && !voice.isSpeaking() && silentSec >= 15) {
-                brain.impulse("Atrofga nazar sol.")
-                lastSpokeAt = now
-            }
-        }
+        HumanoidState.add("Tana uyg'ondi (Fenrir - Erkak)")
     }
 
     fun switchCamera(): Boolean {
         val isFront = eyes?.switchCamera() ?: true
         HumanoidState.add(if (isFront) "Ko'z: OLDI kameraga o'tdi" else "Ko'z: ORQA kameraga o'tdi")
-        brain.impulse("Nigohing yangi tomonga qaratildi.")
         return isFront
     }
 
@@ -143,7 +110,6 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
     override fun onDestroy() {
         HumanoidState.add("Tizim to'xtatildi")
         HumanoidState.status("Uxlayapti")
-        scope.cancel()
         eyes?.stop()
         nerves.stop()
         ears.stop()
@@ -159,7 +125,6 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
 
     override fun onAudio(pcm24k: ByteArray) {
         voice.play(pcm24k)
-        lastSpokeAt = SystemClock.elapsedRealtime()
     }
 
     override fun onInterrupted() {
@@ -168,7 +133,6 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
 
     override fun onUserText(text: String) {
         synchronized(userBuf) { userBuf.append(text) }
-        lastSpokeAt = SystemClock.elapsedRealtime()
     }
 
     override fun onModelText(text: String) {
@@ -181,7 +145,6 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
         val said = synchronized(modelBuf) { modelBuf.toString().trim().also { modelBuf.setLength(0) } }
         if (said.isNotEmpty()) {
             HumanoidState.add("AI: $said")
-            lastSpokeAt = SystemClock.elapsedRealtime()
         }
     }
 

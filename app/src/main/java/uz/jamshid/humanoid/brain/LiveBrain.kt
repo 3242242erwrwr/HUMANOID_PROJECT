@@ -15,7 +15,7 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * MIYA — Tabiiy o'zbekona talaffuz va silliq inson ovozi (Kore).
+ * MIYA — Vazmin erkak ovozi (Fenrir) va tabiiy erkin suhbat.
  */
 class LiveBrain(
     private val apiKey: String,
@@ -34,8 +34,8 @@ class LiveBrain(
 
     companion object {
         private const val TAG = "LiveBrain"
-        // O'zbek tilida eng silliq va tabiiy chiqadigan inson ovozi: Kore
-        const val VOICE = "Kore"
+        // Haqiqiy erkak kishi ovozi: Fenrir
+        const val VOICE = "Fenrir"
         private const val BASE_URL =
             "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key="
     }
