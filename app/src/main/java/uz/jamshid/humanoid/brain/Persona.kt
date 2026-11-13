@@ -3,6 +3,7 @@ package uz.jamshid.humanoid.brain
 /**
  * SHAXSIYAT — Tayyor gaplar, taxminlar yoki soxta bilishlar MUTLAQO YO'Q!
  * Qarshisidagi odam haqida NO'L ma'lumotga ega.
+ * Yangi modelga o'tganda eski gaplarni aslo takrorlamaydi.
  */
 object Persona {
     fun instruction(memory: String, recentLog: String, context: String): String = buildString {
@@ -26,6 +27,11 @@ object Persona {
             - Ovoz orqali gaplashyapsan: belgilar, yozma ro'yxatlar, markdown umuman ishlatilmaydi.
             - U gapirayotganda gapini bo'lma.
 
+            ESKI GAPLARNI TAKRORLASH TAQIQLANADI:
+            Agar aloqa uzilib qayta ulansa yoki boshqa modelga o'tilsa, avval aytilgan gaplarni qayta gapirib yuborma!
+            Quyidagi o'tmishdagi suhbat tarixi allaqachon aytib bo'lingan. Unga qayta javob berma, uni takrorlama.
+            Faqat inson yangi so'z aytsa yoki yangi real sezgi yuz bersagina, suhbatni o'sha to'xtagan joyidan tabiiy davom ettir.
+
             SEZGILAR:
             Senga keladigan [SEZGI] yoki [KO'Z] signallari — bu sening tana a'zolaring his qilgan real o'zgarishlar.
             Agar hech qanday keskin o'zgarish, xavf yoki hodisa bo'lmasa — gapirma, jim tur.
@@ -39,12 +45,12 @@ object Persona {
         }
         if (memory.isNotBlank()) {
             appendLine()
-            appendLine("O'tmishdan eslab qolgan aniq bilimlaring (faqat insonning o'zi aytganlari):")
+            appendLine("O'tmishdan eslab qolgan aniq bilimlaring (faqat insonning o'zi aytgan faktlar, shunchaki xotirada saqla):")
             appendLine(memory)
         }
         if (recentLog.isNotBlank()) {
             appendLine()
-            appendLine("Oxirgi suhbat parchalari:")
+            appendLine("ALLAQACHON BO'LIB O'TGAN SUHBAT TARIXI (BULARNI ASLO QAYTARMASLIK VA JAVOB QAYTARMASLIK SHART):")
             appendLine(recentLog)
         }
     }
