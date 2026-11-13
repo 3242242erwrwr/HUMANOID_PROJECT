@@ -15,7 +15,7 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * MIYA — Tabiiy erkak ovozi (Fenrir) va toza audio oqimi.
+ * MIYA — Qaytadan Charon ovozi, lekin toza media sifatda!
  */
 class LiveBrain(
     private val apiKey: String,
@@ -34,8 +34,8 @@ class LiveBrain(
 
     companion object {
         private const val TAG = "LiveBrain"
-        // Tabiiy, chuqur va vazmin erkak ovozi (Fenrir)
-        const val VOICE = "Fenrir"
+        // Qaytarildi: Charon ovozi
+        const val VOICE = "Charon"
         private const val BASE_URL =
             "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key="
     }
