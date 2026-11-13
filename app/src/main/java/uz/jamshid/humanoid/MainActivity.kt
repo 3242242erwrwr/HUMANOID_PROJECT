@@ -1,7 +1,6 @@
 package uz.jamshid.humanoid
 
 import android.Manifest
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -9,14 +8,11 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
-import android.text.InputType
 import android.view.Gravity
 import android.widget.Button
-import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -24,11 +20,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.launch
+import uz.jamshid.humanoid.brain.ApiKeyManager
 
 /**
  * Hamroh AI Interfeysi:
- * - Yangi rasmiy logotip
- * - Maxsus API Kalit kiritish va saqlash funksiyasi
+ * - Rasmiy logotip
+ * - KATTA VA YAQQOL "🔑 API KALITLAR MENYUSI" TUGMASI
  * - Kamera almashtirish (Oldi / Orqa)
  * - To'xtatish (O'chirish) va Yoqish
  */
@@ -39,8 +36,9 @@ class MainActivity : ComponentActivity() {
     private lateinit var scroll: ScrollView
     private lateinit var btnCamera: Button
     private lateinit var btnToggleService: Button
-    private lateinit var etApiKey: EditText
-    private lateinit var btnSaveKey: Button
+    private lateinit var btnApiKeys: Button
+
+    private lateinit var keyManager: ApiKeyManager
 
     private var isFrontCamera = true
     private var isRunning = false
@@ -57,6 +55,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        keyManager = ApiKeyManager(this)
         buildUi()
 
         val missing = perms.filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
@@ -152,69 +151,43 @@ class MainActivity : ComponentActivity() {
             textSize = 24f
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(0, 0, 0, 8)
         })
 
         statusView = TextView(this).apply {
             setTextColor(Color.parseColor("#9AA4B2"))
-            textSize = 13f
+            textSize = 14f
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, 6, 0, 12)
+            setPadding(0, 0, 0, 14)
         }
         root.addView(statusView)
 
-        // API KALIT KIRITISH BLOKI
-        val keyLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, 0, 0, 14)
-        }
-
-        val prefs = getSharedPreferences("hamroh_prefs", Context.MODE_PRIVATE)
-        val savedKey = prefs.getString("custom_api_key", "")
-
-        etApiKey = EditText(this).apply {
-            hint = if (savedKey.isNullOrBlank()) "Gemini API Kalit (bo'sh = standart)" else "Kalit saqlangan (o'zgartirish mumkin)"
-            setHintTextColor(Color.parseColor("#6E7681"))
-            setTextColor(Color.WHITE)
-            textSize = 13f
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-            background = GradientDrawable().apply {
-                cornerRadius = 16f
-                setColor(Color.parseColor("#161B22"))
-                setStroke(2, Color.parseColor("#30363D"))
-            }
-            setPadding(24, 16, 24, 16)
-        }
-        keyLayout.addView(etApiKey, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-
-        btnSaveKey = Button(this).apply {
-            text = "Saqlash"
-            textSize = 13f
+        // 1. KATTA VA YAQQOL KO'RINADIGAN "API KALITLAR MENYUSI" TUGMASI
+        btnApiKeys = Button(this).apply {
+            text = "🔑 API KALITLAR MENYUSI"
+            textSize = 14f
             setTextColor(Color.WHITE)
             typeface = Typeface.DEFAULT_BOLD
             background = GradientDrawable().apply {
-                cornerRadius = 16f
-                setColor(Color.parseColor("#238636"))
+                cornerRadius = 20f
+                setColor(Color.parseColor("#6E40C9")) // Chiroyli binafsha rang
             }
+            setPadding(20, 18, 20, 18)
             setOnClickListener {
-                val input = etApiKey.text.toString().trim()
-                prefs.edit().putString("custom_api_key", input).apply()
-                Toast.makeText(this@MainActivity, if (input.isBlank()) "Standart kalitga qaytarildi" else "Yangi API kalit saqlandi!", Toast.LENGTH_SHORT).show()
-                // Kalit o'zgarganda xizmatni yangilash
-                if (isRunning) {
-                    stopService()
-                    wake()
-                }
+                ApiKeysDialog(this@MainActivity, keyManager) {
+                    if (isRunning) {
+                        stopService()
+                        wake()
+                    }
+                }.show()
             }
         }
-        val btnSaveParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
+        root.addView(btnApiKeys, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { setMargins(12, 0, 0, 0) }
-        keyLayout.addView(btnSaveKey, btnSaveParams)
+        ).apply { setMargins(0, 0, 0, 12) })
 
-        root.addView(keyLayout)
-
-        // 1. Kamera tugmasi
+        // 2. Kamera tugmasi
         btnCamera = Button(this).apply {
             textSize = 14f
             setTextColor(Color.WHITE)
@@ -228,7 +201,7 @@ class MainActivity : ComponentActivity() {
             LinearLayout.LayoutParams.WRAP_CONTENT
         ).apply { setMargins(0, 0, 0, 12) })
 
-        // 2. To'xtatish / Yoqish tugmasi
+        // 3. To'xtatish / Yoqish tugmasi
         btnToggleService = Button(this).apply {
             textSize = 14f
             setTextColor(Color.WHITE)

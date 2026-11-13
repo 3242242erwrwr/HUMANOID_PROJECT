@@ -15,15 +15,16 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * MIYA — Google assistentining birinchi "yordam bera olaman" degan gapini dinamik darajasida filtrlab kesuvchi tizim.
+ * MIYA — Ko'p kalitli aylanuvchi avtomatik tizim (Multi-Key Failover).
+ * Bitta kalit limiti tugasa (429/quota), darhol keyingi kalitga sakraydi.
  */
 class LiveBrain(
-    private val apiKey: String,
+    private val keyManager: ApiKeyManager,
     private val instruction: () -> String,
     private val listener: Listener,
 ) {
     interface Listener {
-        fun onReady(model: String)
+        fun onReady(model: String, keyIndex: Int)
         fun onAudio(pcm24k: ByteArray)
         fun onInterrupted()
         fun onUserText(text: String)
@@ -52,7 +53,8 @@ class LiveBrain(
     @Volatile private var stopped = true
     @Volatile private var generation = 0
 
-    // Assistentning soxta gaplarini filtrlovchi bufer
+    @Volatile private var currentKey: String = ""
+
     private val currentTurnText = StringBuilder()
     private val currentTurnAudio = mutableListOf<ByteArray>()
     @Volatile private var isFilteringInitialGreeting = true
@@ -75,9 +77,14 @@ class LiveBrain(
         if (stopped) return
         val gen = ++generation
         val model = pool.first()
-        listener.onState("Ulanmoqda: $model")
+        val key = keyManager.getActiveKey()
+        currentKey = key
 
-        val req = Request.Builder().url(BASE_URL + apiKey).build()
+        val allKeys = keyManager.getAllKeys()
+        val keyIdx = allKeys.indexOf(key) + 1
+        listener.onState("Ulanmoqda ($model | Kalit #$keyIdx)")
+
+        val req = Request.Builder().url(BASE_URL + key).build()
         ws = client.newWebSocket(req, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 try {
@@ -88,11 +95,11 @@ class LiveBrain(
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
-                if (gen == generation) handleMessage(text, model)
+                if (gen == generation) handleMessage(text, model, keyIdx)
             }
 
             override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-                if (gen == generation) handleMessage(bytes.utf8(), model)
+                if (gen == generation) handleMessage(bytes.utf8(), model, keyIdx)
             }
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
@@ -106,7 +113,7 @@ class LiveBrain(
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 val code = response?.code ?: 0
                 val msg = t.message.orEmpty()
-                Log.e(TAG, "Failure on $model: code=$code, msg=$msg")
+                Log.e(TAG, "Failure on $model with key #$keyIdx: code=$code, msg=$msg")
                 if (gen == generation) onDropped(model, msg, code)
             }
         })
@@ -138,13 +145,13 @@ class LiveBrain(
         return JSONObject().put("setup", setup).toString()
     }
 
-    private fun handleMessage(text: String, model: String) {
+    private fun handleMessage(text: String, model: String, keyIdx: Int) {
         val m = try { JSONObject(text) } catch (e: Exception) { return }
 
         if (m.has("setupComplete")) {
             ready = true
-            listener.onState("Jonli: $model")
-            listener.onReady(model)
+            listener.onState("Jonli: $model (Kalit #$keyIdx)")
+            listener.onReady(model, keyIdx)
             return
         }
 
@@ -181,7 +188,7 @@ class LiveBrain(
         }
 
         sc.optJSONObject("inputTranscription")?.optString("text")?.takeIf { it.isNotEmpty() }?.let {
-            isFilteringInitialGreeting = false // Inson gapirdimi, filtr tugaydi
+            isFilteringInitialGreeting = false
             listener.onUserText(it)
         }
 
@@ -194,17 +201,13 @@ class LiveBrain(
 
         if (sc.optBoolean("turnComplete")) {
             val fullText = currentTurnText.toString().lowercase()
-            // Agar birinchi gap Google assistentining "yordam bera olaman" shabloni bo'lsa — UNUMAN CHIQARMAZ!
             if (isFilteringInitialGreeting) {
                 val isBotGreeting = fullText.contains("yordam") || fullText.contains("qanday yordam") || fullText.contains("nima xizmat")
                 if (!isBotGreeting) {
-                    // Agar tabiiy boshqa gap bo'lsa chiqaradi
                     for (chunk in currentTurnAudio) {
                         listener.onAudio(chunk)
                     }
                     listener.onModelText(currentTurnText.toString())
-                } else {
-                    Log.i(TAG, "Assistentning soxta 'yordam' gapi bloklandi va o'chirildi!")
                 }
                 isFilteringInitialGreeting = false
             } else {
@@ -220,8 +223,15 @@ class LiveBrain(
     private fun onDropped(model: String, why: String, httpCode: Int) {
         ready = false
         ws = null
-        listener.onState("Almashmoqda ($model)")
-        pool.penalize(model, httpCode, why)
+
+        // Agar limit (429/quota) bo'lsa, joriy kalitni dam oldiramiz va boshqasiga o'tamiz
+        if (httpCode == 429 || why.contains("quota", true) || why.contains("limit", true)) {
+            keyManager.penalizeKey(currentKey)
+            listener.onState("Kalit limiti tugadi, keyingisiga o'tilmoqda...")
+        } else {
+            pool.penalize(model, httpCode, why)
+            listener.onState("Qayta ulanmoqda...")
+        }
 
         if (stopped) return
 

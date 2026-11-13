@@ -5,7 +5,6 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
@@ -16,6 +15,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
+import uz.jamshid.humanoid.brain.ApiKeyManager
 import uz.jamshid.humanoid.brain.LiveBrain
 import uz.jamshid.humanoid.brain.Persona
 import uz.jamshid.humanoid.organs.Ears
@@ -24,8 +24,7 @@ import uz.jamshid.humanoid.organs.Nerves
 import uz.jamshid.humanoid.organs.Voice
 
 /**
- * GUMANOID TANASI — Sokin, tabiiy inson.
- * Hadeb ko'rganini hisobot qilib gapiraverish butunlay to'xtatildi!
+ * GUMANOID TANASI — Ko'p kalitli avtomatik aylanuvchi tizim.
  */
 class HumanoidService : LifecycleService(), LiveBrain.Listener {
 
@@ -41,6 +40,9 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
     }
 
     private val binder = LocalBinder()
+
+    lateinit var keyManager: ApiKeyManager
+        private set
 
     private lateinit var brain: LiveBrain
     private lateinit var voice: Voice
@@ -59,15 +61,13 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
         wakeLock = (getSystemService(POWER_SERVICE) as PowerManager)
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Hamroh::Tana").apply { acquire() }
 
-        val prefs = getSharedPreferences("hamroh_prefs", Context.MODE_PRIVATE)
-        val customKey = prefs.getString("custom_api_key", "")?.trim().orEmpty()
-        val key = if (customKey.isNotBlank()) customKey else BuildConfig.GEMINI_API_KEY
+        keyManager = ApiKeyManager(this)
         voice = Voice(this).apply { routeAudio(); start() }
         nerves = Nerves(this) { event ->
             HumanoidState.add("⚡ $event")
             brain.impulse(event)
         }
-        brain = LiveBrain(key, { Persona.instruction() }, this)
+        brain = LiveBrain(keyManager, { Persona.instruction() }, this)
 
         ears = Ears { chunk ->
             val speaking = voice.isSpeaking()
@@ -83,12 +83,11 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
         if (granted(Manifest.permission.ACCESS_FINE_LOCATION)) nerves.start()
         if (granted(Manifest.permission.CAMERA)) {
             eyes = Eyes(this, this) { jpeg ->
-                // Kamera faqat ko'zi sifatida kadr yuboradi, uni har soniyada gapirtirish to'xtatildi
                 brain.sendFrame(jpeg)
             }.also { it.start(front = true) }
         }
 
-        HumanoidState.add("Tana uyg'ondi (Fenrir - Erkak)")
+        HumanoidState.add("Tana uyg'ondi")
     }
 
     fun switchCamera(): Boolean {
@@ -122,8 +121,8 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
         super.onDestroy()
     }
 
-    override fun onReady(model: String) {
-        HumanoidState.add("Miya ulandi ($model)")
+    override fun onReady(model: String, keyIndex: Int) {
+        HumanoidState.add("Miya ulandi ($model | Kalit #$keyIndex)")
     }
 
     override fun onAudio(pcm24k: ByteArray) {
@@ -170,7 +169,7 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         val notif: Notification = NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-            .setContentTitle("Hamroh")
+            .setContentTitle("Hamroh AI")
             .setContentText("Faol")
             .setContentIntent(open)
             .setOngoing(true)
