@@ -31,7 +31,8 @@ import uz.jamshid.humanoid.organs.Nerves
 import uz.jamshid.humanoid.organs.Voice
 
 /**
- * GUMANOID TANASI — Tez fikrlaydigan, gapni cho'zmaydigan erkin inson.
+ * GUMANOID TANASI — Mutlaqo erkin shaxs.
+ * Hech qanday buyruq, qolip yoki o'lchovsiz toza hayot.
  */
 class HumanoidService : LifecycleService(), LiveBrain.Listener {
 
@@ -73,7 +74,7 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
         voice = Voice(this).apply { routeAudio(); start() }
         nerves = Nerves(this) { event ->
             HumanoidState.add("⚡ $event")
-            brain.impulse("Hozirgina tanangda shuni his qilding: $event. Cho'zmasdan, 1 ta tabiiy jumla ayt.")
+            brain.impulse(event)
         }
         brain = LiveBrain(key, { Persona.instruction() }, this)
 
@@ -103,17 +104,17 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
     private suspend fun autonomousLoop() {
         delay(3000)
         if (brain.ready && hasFrame) {
-            brain.impulse("Hozir ko'rganingga tez qarab, cho'zmasdan 1-2 ta erkin jumla bilan gap boshla.")
+            brain.impulse("Atrofingga qara.")
             lastSpokeAt = SystemClock.elapsedRealtime()
         }
 
         while (scope.isActive) {
-            delay(10_000)
+            delay(12_000)
             val now = SystemClock.elapsedRealtime()
             val silentSec = (now - lastSpokeAt) / 1000
 
-            if (brain.ready && hasFrame && !voice.isSpeaking() && silentSec >= 12) {
-                brain.impulse("Ko'rganingga qara. Agar diqqatga loyiq yangi narsa ko'rsang, cho'zmasdan 1-2 jumla fikr bildir. O'zgarish bo'lmasa jim tur.")
+            if (brain.ready && hasFrame && !voice.isSpeaking() && silentSec >= 15) {
+                brain.impulse("Atrofga nazar sol.")
                 lastSpokeAt = now
             }
         }
@@ -122,7 +123,7 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
     fun switchCamera(): Boolean {
         val isFront = eyes?.switchCamera() ?: true
         HumanoidState.add(if (isFront) "Ko'z: OLDI kameraga o'tdi" else "Ko'z: ORQA kameraga o'tdi")
-        brain.impulse("Yangi ko'rgan tomonga qara, cho'zmasdan 1-2 jumla munosabat bildir.")
+        brain.impulse("Nigohing yangi tomonga qaratildi.")
         return isFront
     }
 
