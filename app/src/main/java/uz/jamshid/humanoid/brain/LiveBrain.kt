@@ -15,7 +15,8 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * MIYA — Vazmin erkak ovozi (Fenrir) va tabiiy erkin suhbat.
+ * MUTLAQO CHEGARASIZ SUPER MIYA.
+ * Hech qanday ramkasiz, toza Gemini Live multimodal oqimi.
  */
 class LiveBrain(
     private val apiKey: String,
@@ -34,7 +35,6 @@ class LiveBrain(
 
     companion object {
         private const val TAG = "LiveBrain"
-        // Haqiqiy erkak kishi ovozi: Fenrir
         const val VOICE = "Fenrir"
         private const val BASE_URL =
             "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key="
@@ -120,11 +120,16 @@ class LiveBrain(
         val setup = JSONObject()
             .put("model", "models/$model")
             .put("generationConfig", genConfig)
-            .put("systemInstruction", JSONObject().put("parts",
-                JSONArray().put(JSONObject().put("text", instruction()))))
             .put("inputAudioTranscription", JSONObject())
             .put("outputAudioTranscription", JSONObject())
             .put("realtimeInputConfig", JSONObject().put("automaticActivityDetection", JSONObject()))
+
+        // Agar hech qanday ko'rsatma bo'lmasa, mutlaqo bo'sh qoldiriladi — toza super miya
+        val text = instruction()
+        if (text.isNotBlank()) {
+            setup.put("systemInstruction", JSONObject().put("parts",
+                JSONArray().put(JSONObject().put("text", text))))
+        }
 
         return JSONObject().put("setup", setup).toString()
     }
