@@ -13,10 +13,14 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import kotlin.math.max
 
-/** TIL VA OVOZ — Gemini'dan kelgan 24kHz ovozni dinamik/Bluetooth orqali jonli ijro etadi. */
+/**
+ * OVOZ IJROSI — Endi "telefon trubkasi"dek emas, toza va tabiiy musiqa/media sifatda!
+ */
 class Voice(private val ctx: Context) {
 
-    companion object { const val RATE = 24000 }
+    companion object {
+        const val RATE = 24000
+    }
 
     private val am = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val queue = LinkedBlockingQueue<ByteArray>()
@@ -24,10 +28,11 @@ class Voice(private val ctx: Context) {
     @Volatile private var speakingUntil = 0L
     private var thread: Thread? = null
 
+    // Toza, jarangdor va tabiiy inson ovozi uchun MEDIA atributlari
     private val track: AudioTrack = AudioTrack.Builder()
         .setAudioAttributes(
             AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                .setUsage(AudioAttributes.USAGE_MEDIA)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                 .build()
         )
@@ -42,15 +47,15 @@ class Voice(private val ctx: Context) {
         .setTransferMode(AudioTrack.MODE_STREAM)
         .build()
 
-    /** Aloqa rejimi (apparat exo-bostirish ishlashi uchun) + baland dinamik yoki mashina Bluetooth'i. */
     fun routeAudio() {
-        am.mode = AudioManager.MODE_IN_COMMUNICATION
+        // Karnaydan tabiiy, ochiq va keng ovoz chiqishi uchun NORMAL rejim
+        am.mode = AudioManager.MODE_NORMAL
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val devs = am.availableCommunicationDevices
-            val pick = devs.firstOrNull {
-                it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO || it.type == AudioDeviceInfo.TYPE_BLE_HEADSET
-            } ?: devs.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
-            pick?.let { am.setCommunicationDevice(it) }
+            val bt = devs.firstOrNull {
+                it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || it.type == AudioDeviceInfo.TYPE_BLE_SPEAKER
+            }
+            bt?.let { am.setCommunicationDevice(it) }
         } else {
             @Suppress("DEPRECATION")
             am.isSpeakerphoneOn = true
@@ -76,7 +81,6 @@ class Voice(private val ctx: Context) {
         speakingUntil = max(now, speakingUntil) + pcm.size * 1000L / (RATE * 2)
     }
 
-    /** Inson gapini bo'lsa — darhol jim bo'ladi. */
     fun interrupt() {
         queue.clear()
         track.pause()
@@ -92,7 +96,6 @@ class Voice(private val ctx: Context) {
         thread?.join(500)
         track.stop()
         track.release()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) am.clearCommunicationDevice()
         am.mode = AudioManager.MODE_NORMAL
     }
 }
