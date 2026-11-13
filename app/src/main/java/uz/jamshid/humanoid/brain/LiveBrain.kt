@@ -16,9 +16,8 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.min
 
 /**
- * MIYA — Gemini Live API bilan to'liq avtomatik almashinuvchi ulanish.
- * Bitta modelda limit (429/quota) yoki xato bo'lsa, zudlik bilan hovuzdagi
- * keyingi modelga o'tadi. Foydalanuvchi uzilishni sezmaydi.
+ * MIYA — Tabiiy, to'g'ridan-to'g'ri Gemini Live oqimi.
+ * Ortiqcha qoliplar va oraliq to'siqlarsiz ishlaydi.
  */
 class LiveBrain(
     private val apiKey: String,
@@ -26,7 +25,7 @@ class LiveBrain(
     private val listener: Listener,
 ) {
     interface Listener {
-        fun onReady(model: String, resumed: Boolean)
+        fun onReady(model: String)
         fun onAudio(pcm24k: ByteArray)
         fun onInterrupted()
         fun onUserText(text: String)
@@ -54,12 +53,6 @@ class LiveBrain(
         private set
     @Volatile private var stopped = true
     @Volatile private var generation = 0
-    @Volatile private var currentModel: String = pool.first()
-
-    private var resumeHandle: String? = null
-    private var usedHandle = false
-    private var failStreak = 0
-    @Volatile private var pendingText: String? = null
 
     fun start() {
         stopped = false
@@ -77,9 +70,7 @@ class LiveBrain(
     private fun connect() {
         if (stopped) return
         val gen = ++generation
-        // Mavjud, limiti tugamagan birinchi modelni tanlaymiz
         val model = pool.first()
-        currentModel = model
         listener.onState("Ulanmoqda: $model")
 
         val req = Request.Builder().url(BASE_URL + apiKey).build()
@@ -105,7 +96,7 @@ class LiveBrain(
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                if (gen == generation) onDropped(model, "Yopildi: $code $reason", 0)
+                if (gen == generation) onDropped(model, "Yopildi", 0)
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
@@ -123,7 +114,6 @@ class LiveBrain(
             .put("speechConfig", JSONObject().put("voiceConfig",
                 JSONObject().put("prebuiltVoiceConfig", JSONObject().put("voiceName", VOICE))))
 
-        // Agar extended thinking model bo'lsa, kerakli config
         if (model.contains("thinking")) {
             genConfig.put("thinkingConfig", JSONObject().put("thinkingBudget", 0))
         }
@@ -135,13 +125,7 @@ class LiveBrain(
                 JSONArray().put(JSONObject().put("text", instruction()))))
             .put("inputAudioTranscription", JSONObject())
             .put("outputAudioTranscription", JSONObject())
-            .put("contextWindowCompression", JSONObject().put("slidingWindow", JSONObject()))
             .put("realtimeInputConfig", JSONObject().put("automaticActivityDetection", JSONObject()))
-
-        val sr = JSONObject()
-        usedHandle = resumeHandle != null
-        resumeHandle?.let { sr.put("handle", it) }
-        setup.put("sessionResumption", sr)
 
         return JSONObject().put("setup", setup).toString()
     }
@@ -151,25 +135,20 @@ class LiveBrain(
 
         if (m.has("setupComplete")) {
             ready = true
-            failStreak = 0
             listener.onState("Jonli: $model")
-            listener.onReady(model, usedHandle)
-            pendingText?.let { t ->
-                pendingText = null
-                sendText(t)
-            }
+            listener.onReady(model)
             return
         }
 
-        m.optJSONObject("sessionResumptionUpdate")?.let { u ->
-            val h = u.optString("newHandle")
-            if (u.optBoolean("resumable", true) && h.isNotEmpty()) {
-                resumeHandle = h
-            }
-        }
-
         if (m.has("goAway")) {
-            main.post { reconnectNext(model, "goAway") }
+            main.post {
+                if (!stopped) {
+                    ready = false
+                    ws?.close(1000, "goAway")
+                    ws = null
+                    connect()
+                }
+            }
             return
         }
 
@@ -202,33 +181,17 @@ class LiveBrain(
         }
     }
 
-    private fun reconnectNext(failedModel: String, reason: String) {
-        if (stopped) return
-        ready = false
-        val old = ws
-        generation++
-        old?.close(1000, reason)
-        ws = null
-        connect()
-    }
-
     private fun onDropped(model: String, why: String, httpCode: Int) {
-        val wasReady = ready
         ready = false
         ws = null
-        listener.onState("Limit/uzilish ($model): $why")
-
-        // Agar ulanish bosqichida yoki limit sabab yiqilsa, bu modelni vaqtincha dam oldiramiz
+        listener.onState("Almashmoqda ($model)")
         pool.penalize(model, httpCode, why)
-        resumeHandle = null // boshqa modelga o'tganda eski handle ishlamaydi
 
         if (stopped) return
 
-        failStreak++
-        val delay = if (wasReady) 300L else min(10_000L, 500L * failStreak)
         main.postDelayed({
             if (!stopped && ws == null) connect()
-        }, delay)
+        }, 500L)
     }
 
     fun sendAudio(pcm16k: ByteArray) {
@@ -243,11 +206,8 @@ class LiveBrain(
         ws?.send("{\"realtimeInput\":{\"video\":{\"data\":\"$b64\",\"mimeType\":\"image/jpeg\"}}}")
     }
 
-    fun sendText(text: String) {
-        if (!ready) {
-            pendingText = text
-            return
-        }
+    fun sendSense(text: String) {
+        if (!ready) return
         ws?.send(JSONObject().put("realtimeInput", JSONObject().put("text", text)).toString())
     }
 }

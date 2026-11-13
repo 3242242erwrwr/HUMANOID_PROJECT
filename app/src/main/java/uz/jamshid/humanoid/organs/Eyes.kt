@@ -16,13 +16,15 @@ import java.io.ByteArrayOutputStream
 import java.util.concurrent.Executors
 import kotlin.math.max
 
-/** KO'Z — orqa kamera, har INTERVAL_MS da bitta JPEG kadr. */
+/** KO'Z — Yengil, to'g'ridan-to'g'ri oqim. Internetni tiqmaslik uchun optimal o'lcham va oraliq. */
 class Eyes(
     private val ctx: Context,
     private val owner: LifecycleOwner,
     private val onFrame: (ByteArray) -> Unit,
 ) {
-    companion object { const val INTERVAL_MS = 2000L }
+    companion object {
+        const val INTERVAL_MS = 3000L // Har 3 soniyada 1 ta yengil kadr
+    }
 
     private val exec = Executors.newSingleThreadExecutor()
     private var provider: ProcessCameraProvider? = null
@@ -36,7 +38,7 @@ class Eyes(
             val analysis = ImageAnalysis.Builder()
                 .setResolutionSelector(
                     ResolutionSelector.Builder().setResolutionStrategy(
-                        ResolutionStrategy(Size(640, 480), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER)
+                        ResolutionStrategy(Size(480, 360), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER)
                     ).build()
                 )
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
@@ -62,14 +64,14 @@ class Eyes(
     }
 
     private fun toJpeg(src: Bitmap, rotation: Int): ByteArray {
-        val scale = 640f / max(src.width, src.height)
+        val scale = 480f / max(src.width, src.height)
         val m = Matrix().apply {
             if (scale < 1f) postScale(scale, scale)
             if (rotation != 0) postRotate(rotation.toFloat())
         }
         val bmp = Bitmap.createBitmap(src, 0, 0, src.width, src.height, m, true)
         return ByteArrayOutputStream().use { out ->
-            bmp.compress(Bitmap.CompressFormat.JPEG, 65, out)
+            bmp.compress(Bitmap.CompressFormat.JPEG, 50, out)
             out.toByteArray()
         }
     }
