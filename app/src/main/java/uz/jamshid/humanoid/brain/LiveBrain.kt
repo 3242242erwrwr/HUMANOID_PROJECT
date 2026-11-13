@@ -15,9 +15,8 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * MIYA — Gemini Live bilan to'liq ikki tomonlama aloqa.
- * Ko'z (video) oqimi alohida, quloq (audio) oqimi alohida.
- * Tovush kelganda ko'z a'zolarini hisobot qilib to'kib solishining oldi olingan.
+ * MIYA — Gemini Live bilan to'liq multimodal aloqa.
+ * Kamera kadrlarini va audioni to'g'ridan-to'g'ri o'ziga qabul qiladi.
  */
 class LiveBrain(
     private val apiKey: String,
@@ -200,13 +199,14 @@ class LiveBrain(
         ws?.send("{\"realtimeInput\":{\"audio\":{\"data\":\"$b64\",\"mimeType\":\"audio/pcm;rate=16000\"}}}")
     }
 
+    /** Kamera kadrini Gemini'ga to'g'ri realtimeInput formati orqali jo'natish */
     fun sendFrame(jpeg: ByteArray) {
         if (!ready) return
         val b64 = Base64.encodeToString(jpeg, Base64.NO_WRAP)
-        ws?.send("{\"realtimeInput\":{\"video\":{\"data\":\"$b64\",\"mimeType\":\"image/jpeg\"}}}")
+        val payload = "{\"realtimeInput\":{\"video\":{\"data\":\"$b64\",\"mimeType\":\"image/jpeg\"}}}"
+        ws?.send(payload)
     }
 
-    /** Real vaqtda biror narsa ko'rilganda yoki sezilganda mustaqil fikr tug'dirish */
     fun promptReaction(text: String) {
         if (!ready) return
         val payload = JSONObject().put("clientContent", JSONObject()
