@@ -15,7 +15,7 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * SUPER MIYA — Mutlaqo chegarasiz, toza Charon ovozi.
+ * MIYA — Google assistentining birinchi "yordam bera olaman" degan gapini dinamik darajasida filtrlab kesuvchi tizim.
  */
 class LiveBrain(
     private val apiKey: String,
@@ -34,7 +34,6 @@ class LiveBrain(
 
     companion object {
         private const val TAG = "LiveBrain"
-        // Charon ovozi
         const val VOICE = "Charon"
         private const val BASE_URL =
             "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key="
@@ -53,8 +52,14 @@ class LiveBrain(
     @Volatile private var stopped = true
     @Volatile private var generation = 0
 
+    // Assistentning soxta gaplarini filtrlovchi bufer
+    private val currentTurnText = StringBuilder()
+    private val currentTurnAudio = mutableListOf<ByteArray>()
+    @Volatile private var isFilteringInitialGreeting = true
+
     fun start() {
         stopped = false
+        isFilteringInitialGreeting = true
         connect()
     }
 
@@ -162,7 +167,11 @@ class LiveBrain(
                 val inline = parts.optJSONObject(i)?.optJSONObject("inlineData") ?: continue
                 if (inline.optString("mimeType").startsWith("audio")) {
                     val raw = Base64.decode(inline.optString("data"), Base64.DEFAULT)
-                    listener.onAudio(raw)
+                    if (isFilteringInitialGreeting) {
+                        currentTurnAudio.add(raw)
+                    } else {
+                        listener.onAudio(raw)
+                    }
                 }
             }
         }
@@ -172,14 +181,38 @@ class LiveBrain(
         }
 
         sc.optJSONObject("inputTranscription")?.optString("text")?.takeIf { it.isNotEmpty() }?.let {
+            isFilteringInitialGreeting = false // Inson gapirdimi, filtr tugaydi
             listener.onUserText(it)
         }
 
         sc.optJSONObject("outputTranscription")?.optString("text")?.takeIf { it.isNotEmpty() }?.let {
-            listener.onModelText(it)
+            currentTurnText.append(it)
+            if (!isFilteringInitialGreeting) {
+                listener.onModelText(it)
+            }
         }
 
         if (sc.optBoolean("turnComplete")) {
+            val fullText = currentTurnText.toString().lowercase()
+            // Agar birinchi gap Google assistentining "yordam bera olaman" shabloni bo'lsa — UNUMAN CHIQARMAZ!
+            if (isFilteringInitialGreeting) {
+                val isBotGreeting = fullText.contains("yordam") || fullText.contains("qanday yordam") || fullText.contains("nima xizmat")
+                if (!isBotGreeting) {
+                    // Agar tabiiy boshqa gap bo'lsa chiqaradi
+                    for (chunk in currentTurnAudio) {
+                        listener.onAudio(chunk)
+                    }
+                    listener.onModelText(currentTurnText.toString())
+                } else {
+                    Log.i(TAG, "Assistentning soxta 'yordam' gapi bloklandi va o'chirildi!")
+                }
+                isFilteringInitialGreeting = false
+            } else {
+                listener.onModelText(currentTurnText.toString())
+            }
+
+            currentTurnText.setLength(0)
+            currentTurnAudio.clear()
             listener.onTurnComplete()
         }
     }
