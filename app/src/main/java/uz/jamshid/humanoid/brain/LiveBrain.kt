@@ -15,8 +15,7 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * MIYA — Gemini Live bilan to'liq multimodal aloqa.
- * Kamera kadrlarini va audioni to'g'ridan-to'g'ri o'ziga qabul qiladi.
+ * MIYA — Tabiiy inson ovozi (Puck) va buyruqsiz toza oqim.
  */
 class LiveBrain(
     private val apiKey: String,
@@ -35,7 +34,8 @@ class LiveBrain(
 
     companion object {
         private const val TAG = "LiveBrain"
-        const val VOICE = "Charon"
+        // Jonli, do'stona va erkin ovoz (Puck)
+        const val VOICE = "Puck"
         private const val BASE_URL =
             "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key="
     }
@@ -199,7 +199,6 @@ class LiveBrain(
         ws?.send("{\"realtimeInput\":{\"audio\":{\"data\":\"$b64\",\"mimeType\":\"audio/pcm;rate=16000\"}}}")
     }
 
-    /** Kamera kadrini Gemini'ga to'g'ri realtimeInput formati orqali jo'natish */
     fun sendFrame(jpeg: ByteArray) {
         if (!ready) return
         val b64 = Base64.encodeToString(jpeg, Base64.NO_WRAP)
