@@ -22,8 +22,9 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.launch
 
 /**
- * Oddiy, ishonchli va crash bo'lmaydigan interfeys.
- * Xizmat bilan aloqa Intent orqali ishlaydi (IPC crash xavfi yo'q).
+ * Oddiy va ishonchli interfeys:
+ * - Kamera almashtirish tugmasi
+ * - To'xtatish (O'chirish) va Yoqish tugmasi
  */
 class MainActivity : ComponentActivity() {
 
@@ -31,8 +32,10 @@ class MainActivity : ComponentActivity() {
     private lateinit var logView: TextView
     private lateinit var scroll: ScrollView
     private lateinit var btnCamera: Button
+    private lateinit var btnToggleService: Button
 
     private var isFrontCamera = true
+    private var isRunning = false
 
     private val perms = buildList {
         add(Manifest.permission.RECORD_AUDIO)
@@ -63,8 +66,10 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
-                    HumanoidState.status.collect {
-                        statusView.text = it
+                    HumanoidState.status.collect { status ->
+                        statusView.text = status
+                        isRunning = status != "Uxlayapti" && status != "To'xtatildi"
+                        updateToggleServiceButton()
                     }
                 }
                 launch {
@@ -85,9 +90,21 @@ class MainActivity : ComponentActivity() {
         val intent = Intent(this, HumanoidService::class.java)
         try {
             ContextCompat.startForegroundService(this, intent)
+            isRunning = true
+            updateToggleServiceButton()
         } catch (e: Exception) {
             statusView.text = "Xizmatni yoqishda xato: ${e.message}"
         }
+    }
+
+    private fun stopService() {
+        val intent = Intent(this, HumanoidService::class.java)
+        try {
+            stopService(intent)
+            isRunning = false
+            HumanoidState.status("To'xtatildi")
+            updateToggleServiceButton()
+        } catch (_: Exception) {}
     }
 
     private fun toggleCamera() {
@@ -103,10 +120,19 @@ class MainActivity : ComponentActivity() {
 
     private fun updateButtonUi() {
         if (!::btnCamera.isInitialized) return
-        btnCamera.text = if (isFrontCamera) "👁️ Ko'z: OLDI KAMERA (Sizga qarayapti)" else "👁️ Ko'z: ORQA KAMERA (Atrofga qarayapti)"
+        btnCamera.text = if (isFrontCamera) "👁️ Ko'z: OLDI KAMERA" else "👁️ Ko'z: ORQA KAMERA"
         btnCamera.background = GradientDrawable().apply {
-            cornerRadius = 24f
+            cornerRadius = 20f
             setColor(if (isFrontCamera) Color.parseColor("#1F6FEB") else Color.parseColor("#238636"))
+        }
+    }
+
+    private fun updateToggleServiceButton() {
+        if (!::btnToggleService.isInitialized) return
+        btnToggleService.text = if (isRunning) "🛑 TO'XTATISH (O'CHIRISH)" else "▶️ ISHGA TUSHIRISH (YOQISH)"
+        btnToggleService.background = GradientDrawable().apply {
+            cornerRadius = 20f
+            setColor(if (isRunning) Color.parseColor("#DA3633") else Color.parseColor("#238636"))
         }
     }
 
@@ -114,13 +140,13 @@ class MainActivity : ComponentActivity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.parseColor("#0E1116"))
-            setPadding(40, 60, 40, 40)
+            setPadding(40, 50, 40, 40)
         }
 
         root.addView(TextView(this).apply {
-            text = "HAMROH"
+            text = "HAMROH SUPER"
             setTextColor(Color.parseColor("#7FD1AE"))
-            textSize = 26f
+            textSize = 24f
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER_HORIZONTAL
         })
@@ -129,32 +155,47 @@ class MainActivity : ComponentActivity() {
             setTextColor(Color.parseColor("#9AA4B2"))
             textSize = 14f
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, 10, 0, 20)
+            setPadding(0, 10, 0, 16)
         }
         root.addView(statusView)
 
+        // 1. Kamera tugmasi
         btnCamera = Button(this).apply {
-            textSize = 15f
+            textSize = 14f
             setTextColor(Color.WHITE)
             typeface = Typeface.DEFAULT_BOLD
-            setPadding(30, 24, 30, 24)
-            setOnClickListener {
-                toggleCamera()
-            }
+            setPadding(24, 20, 24, 20)
+            setOnClickListener { toggleCamera() }
         }
         updateButtonUi()
-
-        val btnParams = LinearLayout.LayoutParams(
+        root.addView(btnCamera, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply {
-            setMargins(0, 0, 0, 24)
+        ).apply { setMargins(0, 0, 0, 16) })
+
+        // 2. TO'XTATISH / YOQISH TUGMASI
+        btnToggleService = Button(this).apply {
+            textSize = 14f
+            setTextColor(Color.WHITE)
+            typeface = Typeface.DEFAULT_BOLD
+            setPadding(24, 20, 24, 20)
+            setOnClickListener {
+                if (isRunning) {
+                    stopService()
+                } else {
+                    wake()
+                }
+            }
         }
-        root.addView(btnCamera, btnParams)
+        updateToggleServiceButton()
+        root.addView(btnToggleService, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(0, 0, 0, 20) })
 
         logView = TextView(this).apply {
             setTextColor(Color.parseColor("#E6EDF3"))
-            textSize = 16f
+            textSize = 15f
             setLineSpacing(4f, 1.1f)
         }
         scroll = ScrollView(this).apply { addView(logView) }
