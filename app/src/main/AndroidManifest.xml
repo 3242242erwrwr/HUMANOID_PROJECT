@@ -18,8 +18,9 @@
 
     <application
         android:allowBackup="false"
-        android:label="Hamroh"
-        android:icon="@android:drawable/ic_btn_speak_now"
+        android:label="Hamroh AI"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@android:style/Theme.Material.NoActionBar">
 
         <activity

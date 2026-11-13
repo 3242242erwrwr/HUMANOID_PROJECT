@@ -5,6 +5,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
@@ -58,7 +59,9 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
         wakeLock = (getSystemService(POWER_SERVICE) as PowerManager)
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Hamroh::Tana").apply { acquire() }
 
-        val key = BuildConfig.GEMINI_API_KEY
+        val prefs = getSharedPreferences("hamroh_prefs", Context.MODE_PRIVATE)
+        val customKey = prefs.getString("custom_api_key", "")?.trim().orEmpty()
+        val key = if (customKey.isNotBlank()) customKey else BuildConfig.GEMINI_API_KEY
         voice = Voice(this).apply { routeAudio(); start() }
         nerves = Nerves(this) { event ->
             HumanoidState.add("⚡ $event")

@@ -1,6 +1,7 @@
 package uz.jamshid.humanoid
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -8,11 +9,14 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
+import android.text.InputType
 import android.view.Gravity
 import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -22,9 +26,11 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.launch
 
 /**
- * Oddiy va ishonchli interfeys:
- * - Kamera almashtirish tugmasi
- * - To'xtatish (O'chirish) va Yoqish tugmasi
+ * Hamroh AI Interfeysi:
+ * - Yangi rasmiy logotip
+ * - Maxsus API Kalit kiritish va saqlash funksiyasi
+ * - Kamera almashtirish (Oldi / Orqa)
+ * - To'xtatish (O'chirish) va Yoqish
  */
 class MainActivity : ComponentActivity() {
 
@@ -33,6 +39,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var scroll: ScrollView
     private lateinit var btnCamera: Button
     private lateinit var btnToggleService: Button
+    private lateinit var etApiKey: EditText
+    private lateinit var btnSaveKey: Button
 
     private var isFrontCamera = true
     private var isRunning = false
@@ -50,11 +58,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         buildUi()
-
-        if (BuildConfig.GEMINI_API_KEY.isBlank()) {
-            statusView.text = "GEMINI_API_KEY yo'q"
-            return
-        }
 
         val missing = perms.filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
         if (missing.isEmpty()) {
@@ -140,11 +143,11 @@ class MainActivity : ComponentActivity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.parseColor("#0E1116"))
-            setPadding(40, 50, 40, 40)
+            setPadding(36, 40, 36, 30)
         }
 
         root.addView(TextView(this).apply {
-            text = "HAMROH SUPER"
+            text = "HAMROH AI"
             setTextColor(Color.parseColor("#7FD1AE"))
             textSize = 24f
             typeface = Typeface.DEFAULT_BOLD
@@ -153,49 +156,97 @@ class MainActivity : ComponentActivity() {
 
         statusView = TextView(this).apply {
             setTextColor(Color.parseColor("#9AA4B2"))
-            textSize = 14f
+            textSize = 13f
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, 10, 0, 16)
+            setPadding(0, 6, 0, 12)
         }
         root.addView(statusView)
+
+        // API KALIT KIRITISH BLOKI
+        val keyLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 0, 0, 14)
+        }
+
+        val prefs = getSharedPreferences("hamroh_prefs", Context.MODE_PRIVATE)
+        val savedKey = prefs.getString("custom_api_key", "")
+
+        etApiKey = EditText(this).apply {
+            hint = if (savedKey.isNullOrBlank()) "Gemini API Kalit (bo'sh = standart)" else "Kalit saqlangan (o'zgartirish mumkin)"
+            setHintTextColor(Color.parseColor("#6E7681"))
+            setTextColor(Color.WHITE)
+            textSize = 13f
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            background = GradientDrawable().apply {
+                cornerRadius = 16f
+                setColor(Color.parseColor("#161B22"))
+                setStroke(2, Color.parseColor("#30363D"))
+            }
+            setPadding(24, 16, 24, 16)
+        }
+        keyLayout.addView(etApiKey, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+
+        btnSaveKey = Button(this).apply {
+            text = "Saqlash"
+            textSize = 13f
+            setTextColor(Color.WHITE)
+            typeface = Typeface.DEFAULT_BOLD
+            background = GradientDrawable().apply {
+                cornerRadius = 16f
+                setColor(Color.parseColor("#238636"))
+            }
+            setOnClickListener {
+                val input = etApiKey.text.toString().trim()
+                prefs.edit().putString("custom_api_key", input).apply()
+                Toast.makeText(this@MainActivity, if (input.isBlank()) "Standart kalitga qaytarildi" else "Yangi API kalit saqlandi!", Toast.LENGTH_SHORT).show()
+                // Kalit o'zgarganda xizmatni yangilash
+                if (isRunning) {
+                    stopService()
+                    wake()
+                }
+            }
+        }
+        val btnSaveParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(12, 0, 0, 0) }
+        keyLayout.addView(btnSaveKey, btnSaveParams)
+
+        root.addView(keyLayout)
 
         // 1. Kamera tugmasi
         btnCamera = Button(this).apply {
             textSize = 14f
             setTextColor(Color.WHITE)
             typeface = Typeface.DEFAULT_BOLD
-            setPadding(24, 20, 24, 20)
+            setPadding(20, 18, 20, 18)
             setOnClickListener { toggleCamera() }
         }
         updateButtonUi()
         root.addView(btnCamera, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { setMargins(0, 0, 0, 16) })
+        ).apply { setMargins(0, 0, 0, 12) })
 
-        // 2. TO'XTATISH / YOQISH TUGMASI
+        // 2. To'xtatish / Yoqish tugmasi
         btnToggleService = Button(this).apply {
             textSize = 14f
             setTextColor(Color.WHITE)
             typeface = Typeface.DEFAULT_BOLD
-            setPadding(24, 20, 24, 20)
+            setPadding(20, 18, 20, 18)
             setOnClickListener {
-                if (isRunning) {
-                    stopService()
-                } else {
-                    wake()
-                }
+                if (isRunning) stopService() else wake()
             }
         }
         updateToggleServiceButton()
         root.addView(btnToggleService, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { setMargins(0, 0, 0, 20) })
+        ).apply { setMargins(0, 0, 0, 16) })
 
         logView = TextView(this).apply {
             setTextColor(Color.parseColor("#E6EDF3"))
-            textSize = 15f
+            textSize = 14f
             setLineSpacing(4f, 1.1f)
         }
         scroll = ScrollView(this).apply { addView(logView) }
