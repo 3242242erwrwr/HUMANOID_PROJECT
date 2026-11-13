@@ -13,11 +13,11 @@ import okio.ByteString
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
-import kotlin.math.min
 
 /**
- * MIYA — Tabiiy, to'g'ridan-to'g'ri Gemini Live oqimi.
- * Ortiqcha qoliplar va oraliq to'siqlarsiz ishlaydi.
+ * MIYA — Gemini Live bilan to'liq ikki tomonlama aloqa.
+ * Ko'z (video) oqimi alohida, quloq (audio) oqimi alohida.
+ * Tovush kelganda ko'z a'zolarini hisobot qilib to'kib solishining oldi olingan.
  */
 class LiveBrain(
     private val apiKey: String,
@@ -206,8 +206,14 @@ class LiveBrain(
         ws?.send("{\"realtimeInput\":{\"video\":{\"data\":\"$b64\",\"mimeType\":\"image/jpeg\"}}}")
     }
 
-    fun sendSense(text: String) {
+    /** Real vaqtda biror narsa ko'rilganda yoki sezilganda mustaqil fikr tug'dirish */
+    fun promptReaction(text: String) {
         if (!ready) return
-        ws?.send(JSONObject().put("realtimeInput", JSONObject().put("text", text)).toString())
+        val payload = JSONObject().put("clientContent", JSONObject()
+            .put("turns", JSONArray().put(JSONObject()
+                .put("role", "user")
+                .put("parts", JSONArray().put(JSONObject().put("text", text)))))
+            .put("turnComplete", true))
+        ws?.send(payload.toString())
     }
 }

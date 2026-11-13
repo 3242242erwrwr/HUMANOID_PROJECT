@@ -22,9 +22,9 @@ import uz.jamshid.humanoid.organs.Nerves
 import uz.jamshid.humanoid.organs.Voice
 
 /**
- * GUMANOID TANASI — Mutlaqo erkin va tabiiy.
- * Hech qanday shablon, qolip yoki sun'iy to'siqlar yo'q.
- * Ko'radi, eshitadi, sezadi va bevosita jonli muloqot qiladi.
+ * GUMANOID TANASI — Mutlaqo tirik insondek tabiiy muloqot.
+ * Ko'z va tovush bir-biriga noo'rin to'kilib ketmaydi.
+ * O'z a'zolarini sanab hisobot bermaydi.
  */
 class HumanoidService : LifecycleService(), LiveBrain.Listener {
 
@@ -54,7 +54,7 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
         voice = Voice(this).apply { routeAudio(); start() }
         nerves = Nerves(this) { event ->
             HumanoidState.add("⚡ $event")
-            brain.sendSense(event)
+            brain.promptReaction("Hozirgina tanangda shuni his qilding: $event. Tabiiy, bir jumla munosabat bildir.")
         }
         brain = LiveBrain(key, { Persona.instruction() }, this)
 
@@ -72,6 +72,7 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
         if (granted(Manifest.permission.ACCESS_FINE_LOCATION)) nerves.start()
         if (granted(Manifest.permission.CAMERA)) {
             eyes = Eyes(this, this) { jpeg ->
+                // Kamera kadrlarini Gemini'ga uzatadi (ko'zi ko'rib turadi)
                 brain.sendFrame(jpeg)
             }.also { it.start() }
         }
