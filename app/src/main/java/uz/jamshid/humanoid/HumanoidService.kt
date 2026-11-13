@@ -61,7 +61,7 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
         voice = Voice(this).apply { routeAudio(); start() }
         nerves = Nerves(this) { event ->
             HumanoidState.add("⚡ $event")
-            brain.promptReaction("Hozirgina tanangda shuni his qilding: $event. Tabiiy, bir jumla munosabat bildir.")
+            brain.impulse("Hozirgina tanangda shuni his qilding: $event. Tabiiy, bir jumla munosabat bildir.")
         }
         brain = LiveBrain(key, { Persona.instruction() }, this)
 

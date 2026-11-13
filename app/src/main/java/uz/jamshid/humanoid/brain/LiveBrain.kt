@@ -15,7 +15,8 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * MIYA — Qaytadan Charon ovozi, lekin toza media sifatda!
+ * MIYA — Erkin shaxs aloqasi.
+ * Faqat passiv kutuvchi "assistent" emas, ko'rgan narsasiga o'z tashabbusi bilan gapira oladi.
  */
 class LiveBrain(
     private val apiKey: String,
@@ -34,7 +35,6 @@ class LiveBrain(
 
     companion object {
         private const val TAG = "LiveBrain"
-        // Qaytarildi: Charon ovozi
         const val VOICE = "Charon"
         private const val BASE_URL =
             "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key="
@@ -206,7 +206,8 @@ class LiveBrain(
         ws?.send(payload)
     }
 
-    fun promptReaction(text: String) {
+    /** Erkin insoniy impuls: ko'rgan narsasiga birov gapirishini kutmasdan o'zidan gapirish */
+    fun impulse(text: String) {
         if (!ready) return
         val payload = JSONObject().put("clientContent", JSONObject()
             .put("turns", JSONArray().put(JSONObject()
