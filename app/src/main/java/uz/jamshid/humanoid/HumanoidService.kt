@@ -11,10 +11,18 @@ import android.content.pm.ServiceInfo
 import android.os.Binder
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import uz.jamshid.humanoid.brain.LiveBrain
 import uz.jamshid.humanoid.brain.Persona
 import uz.jamshid.humanoid.organs.Ears
@@ -23,7 +31,8 @@ import uz.jamshid.humanoid.organs.Nerves
 import uz.jamshid.humanoid.organs.Voice
 
 /**
- * GUMANOID TANASI — Aniq tanlangan bitta kameradan qaraydi.
+ * GUMANOID TANASI — Haqiqiy faol hayot.
+ * Ko'zi ko'rgan paytda inson ovozini kutmasdan, o'z tashabbusi bilan gapira oladi.
  */
 class HumanoidService : LifecycleService(), LiveBrain.Listener {
 
@@ -39,6 +48,7 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
     }
 
     private val binder = LocalBinder()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private lateinit var brain: LiveBrain
     private lateinit var voice: Voice
@@ -51,6 +61,9 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
     private val userBuf = StringBuilder()
     private val modelBuf = StringBuilder()
 
+    @Volatile private var lastSpokeAt = 0L
+    @Volatile private var hasFrame = false
+
     override fun onCreate() {
         super.onCreate()
         startAsForeground()
@@ -61,7 +74,7 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
         voice = Voice(this).apply { routeAudio(); start() }
         nerves = Nerves(this) { event ->
             HumanoidState.add("⚡ $event")
-            brain.impulse("Hozirgina tanangda shuni his qilding: $event. Tabiiy, bir jumla munosabat bildir.")
+            brain.impulse("Hozirgina tanangda shuni his qilding: $event. Boricha, qisqa munosabat bildir.")
         }
         brain = LiveBrain(key, { Persona.instruction() }, this)
 
@@ -79,16 +92,46 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
         if (granted(Manifest.permission.ACCESS_FINE_LOCATION)) nerves.start()
         if (granted(Manifest.permission.CAMERA)) {
             eyes = Eyes(this, this) { jpeg ->
+                hasFrame = true
                 brain.sendFrame(jpeg)
-            }.also { it.start(front = true) } // Standart holatda old kamera bilan boshlaydi
+            }.also { it.start(front = true) }
         }
 
         HumanoidState.add("Tana uyg'ondi (Oldi kamera)")
+        scope.launch { autonomousLoop() }
+    }
+
+    /**
+     * O'Z TASHABBUSI BILAN GAPIRISH SIKLI:
+     * Inson gapirmasa ham, ko'zi ko'rib turgan narsalarga qarab o'zi og'iz ochadi.
+     */
+    private suspend fun autonomousLoop() {
+        // Ilk ulanishda ko'ziga qarab birinchi bo'lib fikr bildirish
+        delay(4000)
+        if (brain.ready && hasFrame) {
+            brain.impulse("Hozir ko'zing bilan ko'rib turganingga qara. Erkin insondek, o'zing birinchi bo'lib gap boshla.")
+            lastSpokeAt = SystemClock.elapsedRealtime()
+        }
+
+        while (scope.isActive) {
+            delay(12_000) // Har 12-15 soniyada atrofga nigoh tashlash
+            val now = SystemClock.elapsedRealtime()
+            val silentSec = (now - lastSpokeAt) / 1000
+
+            // Agar robot hozir gapirmayotgan bo'lsa va 15+ soniyadan beri jimlik bo'lsa
+            if (brain.ready && hasFrame && !voice.isSpeaking() && silentSec >= 15) {
+                // Gemini'ga "turtki" beramiz: ko'zingga qara, yangi narsa ko'rsang gapir, bo'lmasa jim tur
+                brain.impulse("Ko'rib turganingga qara. Agar diqqatga sazovor biror narsa ko'rsang, erkin insondek o'z fikringni ayt. Agar hech narsa o'zgarmagan bo'lsa, gapirma.")
+                lastSpokeAt = now
+            }
+        }
     }
 
     fun switchCamera(): Boolean {
         val isFront = eyes?.switchCamera() ?: true
         HumanoidState.add(if (isFront) "Ko'z: OLDI kameraga o'tdi" else "Ko'z: ORQA kameraga o'tdi")
+        // Kamera almashganda darhol yangi ko'rinishga munosabat bildirish impulsi
+        brain.impulse("Ko'zing endi boshqa tomonga qaradi. Yangi ko'rgan narsangga qara va tabiiy munosabat bildir.")
         return isFront
     }
 
@@ -108,6 +151,7 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
     override fun onDestroy() {
         HumanoidState.add("Tizim to'xtatildi")
         HumanoidState.status("Uxlayapti")
+        scope.cancel()
         eyes?.stop()
         nerves.stop()
         ears.stop()
@@ -123,6 +167,7 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
 
     override fun onAudio(pcm24k: ByteArray) {
         voice.play(pcm24k)
+        lastSpokeAt = SystemClock.elapsedRealtime()
     }
 
     override fun onInterrupted() {
@@ -131,6 +176,7 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
 
     override fun onUserText(text: String) {
         synchronized(userBuf) { userBuf.append(text) }
+        lastSpokeAt = SystemClock.elapsedRealtime()
     }
 
     override fun onModelText(text: String) {
@@ -143,6 +189,7 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
         val said = synchronized(modelBuf) { modelBuf.toString().trim().also { modelBuf.setLength(0) } }
         if (said.isNotEmpty()) {
             HumanoidState.add("AI: $said")
+            lastSpokeAt = SystemClock.elapsedRealtime()
         }
     }
 
