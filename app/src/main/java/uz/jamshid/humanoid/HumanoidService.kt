@@ -31,8 +31,7 @@ import uz.jamshid.humanoid.organs.Nerves
 import uz.jamshid.humanoid.organs.Voice
 
 /**
- * GUMANOID TANASI — Haqiqiy faol hayot.
- * Ko'zi ko'rgan paytda inson ovozini kutmasdan, o'z tashabbusi bilan gapira oladi.
+ * GUMANOID TANASI — Tez fikrlaydigan, gapni cho'zmaydigan erkin inson.
  */
 class HumanoidService : LifecycleService(), LiveBrain.Listener {
 
@@ -74,7 +73,7 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
         voice = Voice(this).apply { routeAudio(); start() }
         nerves = Nerves(this) { event ->
             HumanoidState.add("⚡ $event")
-            brain.impulse("Hozirgina tanangda shuni his qilding: $event. Boricha, qisqa munosabat bildir.")
+            brain.impulse("Hozirgina tanangda shuni his qilding: $event. Cho'zmasdan, 1 ta tabiiy jumla ayt.")
         }
         brain = LiveBrain(key, { Persona.instruction() }, this)
 
@@ -101,27 +100,20 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
         scope.launch { autonomousLoop() }
     }
 
-    /**
-     * O'Z TASHABBUSI BILAN GAPIRISH SIKLI:
-     * Inson gapirmasa ham, ko'zi ko'rib turgan narsalarga qarab o'zi og'iz ochadi.
-     */
     private suspend fun autonomousLoop() {
-        // Ilk ulanishda ko'ziga qarab birinchi bo'lib fikr bildirish
-        delay(4000)
+        delay(3000)
         if (brain.ready && hasFrame) {
-            brain.impulse("Hozir ko'zing bilan ko'rib turganingga qara. Erkin insondek, o'zing birinchi bo'lib gap boshla.")
+            brain.impulse("Hozir ko'rganingga tez qarab, cho'zmasdan 1-2 ta erkin jumla bilan gap boshla.")
             lastSpokeAt = SystemClock.elapsedRealtime()
         }
 
         while (scope.isActive) {
-            delay(12_000) // Har 12-15 soniyada atrofga nigoh tashlash
+            delay(10_000)
             val now = SystemClock.elapsedRealtime()
             val silentSec = (now - lastSpokeAt) / 1000
 
-            // Agar robot hozir gapirmayotgan bo'lsa va 15+ soniyadan beri jimlik bo'lsa
-            if (brain.ready && hasFrame && !voice.isSpeaking() && silentSec >= 15) {
-                // Gemini'ga "turtki" beramiz: ko'zingga qara, yangi narsa ko'rsang gapir, bo'lmasa jim tur
-                brain.impulse("Ko'rib turganingga qara. Agar diqqatga sazovor biror narsa ko'rsang, erkin insondek o'z fikringni ayt. Agar hech narsa o'zgarmagan bo'lsa, gapirma.")
+            if (brain.ready && hasFrame && !voice.isSpeaking() && silentSec >= 12) {
+                brain.impulse("Ko'rganingga qara. Agar diqqatga loyiq yangi narsa ko'rsang, cho'zmasdan 1-2 jumla fikr bildir. O'zgarish bo'lmasa jim tur.")
                 lastSpokeAt = now
             }
         }
@@ -130,8 +122,7 @@ class HumanoidService : LifecycleService(), LiveBrain.Listener {
     fun switchCamera(): Boolean {
         val isFront = eyes?.switchCamera() ?: true
         HumanoidState.add(if (isFront) "Ko'z: OLDI kameraga o'tdi" else "Ko'z: ORQA kameraga o'tdi")
-        // Kamera almashganda darhol yangi ko'rinishga munosabat bildirish impulsi
-        brain.impulse("Ko'zing endi boshqa tomonga qaradi. Yangi ko'rgan narsangga qara va tabiiy munosabat bildir.")
+        brain.impulse("Yangi ko'rgan tomonga qara, cho'zmasdan 1-2 jumla munosabat bildir.")
         return isFront
     }
 

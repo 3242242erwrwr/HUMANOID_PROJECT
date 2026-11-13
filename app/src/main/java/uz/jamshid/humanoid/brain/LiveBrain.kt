@@ -15,8 +15,7 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * MIYA — Erkin shaxs aloqasi.
- * Faqat passiv kutuvchi "assistent" emas, ko'rgan narsasiga o'z tashabbusi bilan gapira oladi.
+ * MIYA — Tez fikrlovchi va o'rtacha tabiiy javob beruvchi arxitektura.
  */
 class LiveBrain(
     private val apiKey: String,
@@ -206,7 +205,7 @@ class LiveBrain(
         ws?.send(payload)
     }
 
-    /** Erkin insoniy impuls: ko'rgan narsasiga birov gapirishini kutmasdan o'zidan gapirish */
+    /** Tez va o'rtacha munosabat bildirish impulsi */
     fun impulse(text: String) {
         if (!ready) return
         val payload = JSONObject().put("clientContent", JSONObject()
